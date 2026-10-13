@@ -11,6 +11,7 @@ export const initNavSheet = (app) => {
 
   const open = () => {
     window.clearTimeout(hideTimer);
+    hideTimer = 0;
     sheet.hidden = false;
     requestAnimationFrame(() => sheet.classList.add('is-open'));
     lockScroll(true);
@@ -23,9 +24,14 @@ export const initNavSheet = (app) => {
     sheet.classList.remove('is-open');
     lockScroll(false);
     openButton.setAttribute('aria-expanded', 'false');
-    hideTimer = window.setTimeout(() => {
-      sheet.hidden = true;
-    }, overlayCloseDelay());
+    // Keep the first pending hide on a repeat close (e.g. Escape twice): a second timer would be
+    // orphaned and hide the sheet after open() ran again, and restarting would delay the hide.
+    if (!hideTimer) {
+      hideTimer = window.setTimeout(() => {
+        hideTimer = 0;
+        sheet.hidden = true;
+      }, overlayCloseDelay());
+    }
     openButton.focus();
   };
 

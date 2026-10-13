@@ -16,7 +16,14 @@ export const initCast = (app) => {
   const closeButton = modal.querySelector('.cast-modal-close');
   let returnFocus = null;
   let closeTimer = 0;
-  // Set while a mouse drag moved the rail, so the click that ends the drag doesn't open a card.
+  // True from closeModal() until the modal is hidden or reopened. Repeat close requests
+  // (Escape, backdrop) during the exit animation are ignored instead of restarting it.
+  let closing = false;
+  // Bumped on every open and close. A close only tears down if no newer open/close happened
+  // since, so reopening during the exit animation can't be hidden by the stale close.
+  let closeToken = 0;
+  // Set when a mouse drag moved the rail, so the click that ends the drag doesn't open a card.
+  // Cleared by the next press on the rail; keyboard activation is never suppressed.
   let dragMoved = false;
 
   /* ── Modal ──────────────────────────────────────────────────────────── */
@@ -82,6 +89,8 @@ export const initCast = (app) => {
     returnFocus = document.activeElement;
     originCard = card || null;
     window.clearTimeout(closeTimer);
+    closeToken += 1; // cancel a close that is still animating
+    closing = false;
     body.innerHTML = renderCastDetail(creator, index);
     if (panel) {
       const { name } = normalizeCreator(creator);
@@ -98,24 +107,27 @@ export const initCast = (app) => {
   };
 
   const closeModal = () => {
-    if (modal.hidden) return;
+    if (modal.hidden || closing) return;
+    closing = true;
     modal.classList.remove('is-open');
     lockScroll(false);
     window.clearTimeout(closeTimer);
-    const teardown = () => {
+    const token = ++closeToken;
+    let finished = false;
+    const finish = () => {
+      // Once only (animation end and the fallback timer both call this), and never after the
+      // modal was reopened in the meantime.
+      if (finished || token !== closeToken) return;
+      finished = true;
+      closing = false;
       modal.hidden = true;
       body.innerHTML = '';
       originCard = null;
     };
-    let finished = false;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      teardown();
-    };
     if (canMorph() && originCard) {
+      // Fallback first, so the close still completes even if the animation never settles.
+      closeTimer = window.setTimeout(finish, 600);
       morphOut(originCard, finish);
-      closeTimer = window.setTimeout(finish, 600); // fallback if the animation never settles
     } else {
       closeTimer = window.setTimeout(finish, overlayCloseDelay());
     }
@@ -183,7 +195,9 @@ export const initCast = (app) => {
 
   rail.querySelectorAll('[data-cast-index]').forEach((card) => {
     card.addEventListener('click', (event) => {
-      if (dragMoved) {
+      // detail === 0 means keyboard or synthetic activation (Enter/Space, element.click(),
+      // assistive tech), which never ends a drag.
+      if (dragMoved && event.detail !== 0) {
         event.preventDefault();
         return;
       }
@@ -285,10 +299,12 @@ export const initCast = (app) => {
   };
 
   rail.addEventListener('pointerdown', (event) => {
+    // Any new press (mouse, touch or pen) clears a previous drag, so only the click that ends
+    // a drag is suppressed — not a later tap.
+    dragMoved = false;
     if (event.pointerType !== 'mouse' || event.button !== 0) return;
     stopGlide();
     pressed = true;
-    dragMoved = false;
     startX = event.clientX;
     startScroll = rail.scrollLeft;
     lastX = event.clientX;
