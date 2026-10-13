@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Naver (Korea-first audience) and Google explicitly welcomed — no paths blocked.
+User-agent: Yeti
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+Sitemap: https://assenent.com/sitemap.xml

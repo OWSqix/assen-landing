@@ -1,0 +1,3 @@
+# Keep text files LF everywhere (the live site files are LF; Windows checkouts and FTP ASCII
+# transfers have introduced CRLF before). Binary files are detected automatically.
+* text=auto eol=lf

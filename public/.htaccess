@@ -1,0 +1,42 @@
+# Cache policy for the static deploy (Cafe24 / Apache). Addresses the Lighthouse
+# "efficient cache lifetimes" diagnostic. Guarded by <IfModule> so it is a safe no-op
+# if a module isn't loaded (won't 500 the site).
+#
+# Hashed build assets (index-<hash>.js / .css) are content-addressed → cache forever.
+# Fonts/images change rarely → cache 6 months. HTML must stay fresh (it carries the
+# prerendered content + inline CSS and changes every deploy) → revalidate each visit.
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2|woff)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "\.(png|jpe?g|webp|gif|svg|ico)$">
+    Header set Cache-Control "public, max-age=15552000"
+  </FilesMatch>
+  <FilesMatch "\.(html)$">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+
+  # Security headers (Lighthouse Best Practices / real hardening).
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Cross-Origin-Opener-Policy "same-origin"
+  # HSTS kept SHORT on purpose: the TLS cert is renewed MANUALLY (~90-day Let's Encrypt). A long
+  # max-age would lock visitors out if a renewal is ever missed. Raise to 1y+ (and add
+  # includeSubDomains; preload) only once cert renewal is automated.
+  Header always set Strict-Transport-Security "max-age=604800"
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/javascript "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType image/png "access plus 6 months"
+  ExpiresByType image/jpeg "access plus 6 months"
+  ExpiresByType image/webp "access plus 6 months"
+  ExpiresByType image/svg+xml "access plus 6 months"
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
